@@ -28,6 +28,7 @@ function normalizeOptions(file, url, options) {
   options.headers = options.headers || {};
   options.data = options.data || {};
   options.fileKey = options.fileKey || 'file';
+  options.payloadType = options.payloadType || 'form';
 
   if (options.headers.Accept == null) {
     if (!Array.isArray(options.accepts)) {
@@ -36,14 +37,18 @@ function normalizeOptions(file, url, options) {
     options.headers.Accept = options.accepts.join(',');
   }
 
-  // Set Content-Type in the data payload
-  // instead of the headers, since the header
-  // for Content-Type will always be multipart/form-data
-  if (options.contentType) {
-    options.data['Content-Type'] = options.contentType;
+  if (options.payloadType === 'form') {
+    // Set Content-Type in the data payload
+    // instead of the headers, since the header
+    // for Content-Type will always be multipart/form-data
+    if (options.contentType) {
+      options.data['Content-Type'] = options.contentType;
+    }
+    
+    options.data[options.fileKey] = file.blob;
+  } else {
+    options.headers['Content-Type'] = options.contentType;
   }
-
-  options.data[options.fileKey] = file.blob;
 
   return options;
 }
@@ -205,16 +210,21 @@ export default Ember.Object.extend({
 
     let options = normalizeOptions(this, url, opts);
 
-    // Build the form
-    let form = new FormData();
+    let form = null;
 
-    Object.keys(options.data).forEach((key) => {
-      if (key === options.fileKey) {
-        form.append(key, options.data[key], get(this, 'name'));
-      } else {
-        form.append(key, options.data[key]);
-      }
-    });
+    if(options.payloadType === 'form') {
+      // Build the form
+      form = new FormData();
+      Object.keys(options.data).forEach((key) => {
+        if (key === options.fileKey) {
+          form.append(key, options.data[key], get(this, 'name'));
+        } else {
+          form.append(key, options.data[key]);
+        }
+      });
+    } else {
+      form = get(this, 'blob');
+    }
 
     let request = new HTTPRequest({ label: `${options.method} ${get(this, 'name') } to ${options.url}` });
     request.open(options.method, options.url);
